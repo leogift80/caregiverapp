@@ -6,7 +6,7 @@ import io
 from openai import OpenAI
 
 # ---------------------------
-# Streamlit page setup
+# Page setup
 # ---------------------------
 st.set_page_config(page_title="Caregiver App", layout="centered")
 st.title("Caregiver App - Personalized Life Guide")
@@ -37,8 +37,6 @@ client = OpenAI(api_key=st.session_state.openai_key) if st.session_state.openai_
 CLIENT_CONFIG = st.secrets["google_oauth"]
 CLIENT_CONFIG = {"web": CLIENT_CONFIG["web"]}  # ensure correct format
 SCOPES = ["https://www.googleapis.com/auth/drive"]
-
-# Streamlit URL for OAuth redirect
 STREAMLIT_URL = st.secrets["streamlit_url"]["url"]
 
 # ---------------------------
@@ -73,26 +71,38 @@ def ask_question(text, question):
 # ---------------------------
 # Google OAuth flow
 # ---------------------------
-query_params = st.query_params  # use new API
-if not st.session_state.creds:
-    if "code" in query_params:
-        # Callback from Google OAuth
+query_params = st.query_params
+
+# Clear previous session & query params if needed
+if st.session_state.get("force_login", False):
+    st.session_state.clear()
+    st.experimental_set_query_params()
+    st.experimental_rerun()
+
+# Handle OAuth callback
+if "code" in query_params and not st.session_state.creds:
+    try:
         flow = Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES)
         flow.redirect_uri = STREAMLIT_URL
         flow.fetch_token(code=query_params["code"][0])
         st.session_state.creds = flow.credentials
-        st.experimental_set_query_params()  # clear query params
+        st.experimental_set_query_params()  # clear ?code= from URL
         st.success("✅ Logged in to Google Drive!")
-    else:
-        # Generate OAuth URL
-        flow = Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES)
-        flow.redirect_uri = STREAMLIT_URL
-        auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
-        st.markdown(f"[Click here to login with Google]({auth_url})")
+    except Exception as e:
+        st.error("OAuth failed. Please try logging in again.")
+        st.session_state.force_login = True
         st.stop()
 
+# Prompt login if not authenticated
+if not st.session_state.creds:
+    flow = Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES)
+    flow.redirect_uri = STREAMLIT_URL
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+    st.markdown(f"[Click here to login with Google]({auth_url})")
+    st.stop()
+
 # ---------------------------
-# Main app after login
+# Main app
 # ---------------------------
 service = init_drive(st.session_state.creds)
 
