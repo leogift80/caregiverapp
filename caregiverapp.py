@@ -4,8 +4,10 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 import io
 from openai import OpenAI
-import json
 
+# ---------------------------
+# Streamlit page setup
+# ---------------------------
 st.set_page_config(page_title="Caregiver App", layout="centered")
 st.title("Caregiver App - Personalized Life Guide")
 
@@ -33,11 +35,11 @@ client = OpenAI(api_key=st.session_state.openai_key) if st.session_state.openai_
 # Google OAuth setup
 # ---------------------------
 CLIENT_CONFIG = st.secrets["google_oauth"]
-CLIENT_CONFIG = {"web": CLIENT_CONFIG["web"]}
+CLIENT_CONFIG = {"web": CLIENT_CONFIG["web"]}  # ensure correct format
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
-# Streamlit URL for redirect
-STREAMLIT_URL = st.secrets["streamlit_url"]  # add your app URL in secrets.toml
+# Streamlit URL for OAuth redirect
+STREAMLIT_URL = st.secrets["streamlit_url"]["url"]
 
 # ---------------------------
 # Helper functions
@@ -71,9 +73,7 @@ def ask_question(text, question):
 # ---------------------------
 # Google OAuth flow
 # ---------------------------
-from urllib.parse import parse_qs
-query_params = st.experimental_get_query_params()
-
+query_params = st.query_params  # use new API
 if not st.session_state.creds:
     if "code" in query_params:
         # Callback from Google OAuth
@@ -84,6 +84,7 @@ if not st.session_state.creds:
         st.experimental_set_query_params()  # clear query params
         st.success("✅ Logged in to Google Drive!")
     else:
+        # Generate OAuth URL
         flow = Flow.from_client_config(CLIENT_CONFIG, scopes=SCOPES)
         flow.redirect_uri = STREAMLIT_URL
         auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
